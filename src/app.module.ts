@@ -4,10 +4,17 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AuthController } from './auth/auth.controller';
 import { TestController } from './test/test.controller';
 import { PermissionsService } from './permissions/permissions.service';
+import { CoursesController } from './courses/courses.controller';
+import { MulterModule } from '@nestjs/platform-express';
+import { multerConfig } from './config/multer.config';
+import { ProctorController } from './proctor/proctor.controller';
+import { ProctorService } from './proctor/proctor.service';
+import { AssignmentsController } from './assignments/assignments.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({isGlobal: true}),
+    MulterModule.register(multerConfig),
     ClientsModule.registerAsync([
       {
         name: 'AUTH_GRPC',
@@ -48,10 +55,76 @@ import { PermissionsService } from './permissions/permissions.service';
           }
         }),
         inject: [ConfigService]
-      }
+      },
+      {
+        name: 'COURSE_GRPC',
+        imports: [ConfigModule],
+        useFactory: (cfg: ConfigService) => ({
+          transport: Transport.GRPC,
+          options: {
+            package: 'course',
+            protoPath: require.resolve('ulms-contracts/protos/course.proto'),
+            url: cfg.get<string>('COURSE_GRPC_URL') ?? '0.0.0.0:50052',
+            loader: {
+              longs: String,
+              enums: String,
+              defaults: false,
+              objects: true,
+              arrays: true
+            }
+          }
+        }),
+        inject: [ConfigService]
+      },
+      {
+        name: 'ASSIGNMENT_GRPC',
+        imports: [ConfigModule],
+        useFactory: (cfg: ConfigService) => ({
+          transport: Transport.GRPC,
+          options: {
+            package: 'assignment',
+            protoPath: require.resolve('ulms-contracts/protos/assignment.proto'),
+            url: cfg.get<string>('ASSIGNMENT_GRPC_URL') ?? '0.0.0.0:50054',
+            loader: {
+              longs: String,
+              enums: String,
+              defaults: false,
+              objects: true,
+              arrays: true
+            }
+          }
+        }),
+        inject: [ConfigService]
+      },
+      {
+        name: 'PROCTOR_GRPC',
+        imports: [ConfigModule],
+        useFactory: (cfg: ConfigService) => ({
+          transport: Transport.GRPC,
+          options: {
+            package: 'proctor',
+            protoPath: require.resolve('ulms-contracts/protos/proctor.proto'),
+            url: cfg.get<string>('PROCTOR_GRPC_URL') ?? '0.0.0.0:60051',
+            loader: {
+              longs: String,
+              enums: String,
+              defaults: false,
+              objects: true,
+              arrays: true
+            }
+          }
+        }),
+        inject: [ConfigService]
+      },
     ]),
   ],
-  providers: [PermissionsService],
-  controllers: [AuthController, TestController],
+  providers: [PermissionsService, ProctorService],
+  controllers: [
+    AuthController,
+    TestController,
+    CoursesController,
+    ProctorController,
+    AssignmentsController
+  ],
 })
 export class AppModule {}
