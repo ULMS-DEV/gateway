@@ -1,9 +1,13 @@
 import { Metadata } from "@grpc/grpc-js";
-import { Body, Controller, Get, Headers, Inject, Ip, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Inject, Ip, Param, Post, UseGuards } from "@nestjs/common";
 import type { ClientGrpc } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs/internal/firstValueFrom";
 import { restoreDates } from "src/common/util/googleTimestamp.util";
+import { CurrentUser } from "src/decorators/current-user.decorator";
+import { AuthRolesGuard } from "src/guards/auth/auth-roles.guard";
+import { AuthGuard } from "src/guards/auth/auth.guard";
 
+@UseGuards(AuthGuard, AuthRolesGuard)
 @Controller('exams')
 export class ExamsController {
     private examsService;
@@ -12,6 +16,19 @@ export class ExamsController {
 
     onModuleInit(){
         this.examsService = this.client.getService('ExamService');
+    }
+
+    @Get()
+    async getAllStudentExams(@CurrentUser() user: any){
+        try {
+            const result = await firstValueFrom(this.examsService.GetStudentExams({studentId: user.id})) as any;
+            if(!result || !result.exams || result.exams.length === 0){
+                return [];
+            }
+            return restoreDates(result.exams).map(exam => this.parseExamFields(exam));
+        } catch (error) {
+            console.error('Error fetching student exams:', error);
+        }
     }
 
     @Post('seed')
@@ -79,14 +96,14 @@ export class ExamsController {
         return this.parseSessionFields(restoreDates(session));
     }
 
-    @Get('session/:examId/student/:studentId')
+    @Get('session/:examId/student')
     async getStudentExamSession(
         @Param('examId') examId: string,
-        @Param('studentId') studentId: string
+        @CurrentUser() user: any
     ){
         const session = await firstValueFrom(this.examsService.GetStudentExamSession({
             examId,
-            studentId
+            studentId: user.studentId
         })) as any;
         if(!session){
             return null;
@@ -115,9 +132,9 @@ export class ExamsController {
         return restoreDates(result);
     }
 
-    @Get('sessions/student/:studentId')
-    async getStudentSessions(@Param('studentId') studentId: string){
-        const result = await firstValueFrom(this.examsService.GetStudentSessions({ studentId })) as any;
+    @Get('sessions/student')
+    async getStudentSessions(@CurrentUser() user: any){
+        const result = await firstValueFrom(this.examsService.GetStudentSessions({ studentId: user.studentId })) as any;
         if(!result || !result.sessions || result.sessions.length === 0){
             return [];
         }
@@ -143,6 +160,15 @@ export class ExamsController {
     }){
         const result = await firstValueFrom(this.examsService.GradeAnswer(data)) as any;
         return this.parseAnswerFields(restoreDates(result.answer));
+    }
+
+    @Post('verify-student')
+    async verifyStudentIdentity(@Body() data: {
+        sessionId: string;
+        image: string;
+    }){
+        const result = await firstValueFrom(this.examsService.VerifyStudentIdentity(data)) as any;
+        return result;
     }
 
     private parseQuestionFields(question: any): any {

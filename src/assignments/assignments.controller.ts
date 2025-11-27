@@ -1,8 +1,13 @@
-import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post, UseGuards } from '@nestjs/common';
 import type { ClientGrpc } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { restoreDates } from 'src/common/util/googleTimestamp.util';
+import { CurrentUser } from 'src/decorators/current-user.decorator';
+import { RequirePerms } from 'src/decorators/permissions.decorator';
+import { AuthRolesGuard } from 'src/guards/auth/auth-roles.guard';
+import { AuthGuard } from 'src/guards/auth/auth.guard';
 
+@UseGuards(AuthGuard, AuthRolesGuard)
 @Controller('assignments')
 export class AssignmentsController {
     private assignmentsService;
@@ -13,7 +18,8 @@ export class AssignmentsController {
       this.assignmentsService = this.client.getService('AssignmentService');
     }
 
-    @Get(':id')
+    // @RequirePerms(ASSIGNMENT)
+    @Get('findOne/:id')
     async getAssignmentById(@Param('id') id: string){
       const assignment = await firstValueFrom(this.assignmentsService.getAssignmentById({ id })) as any;
       if(!assignment){
@@ -39,9 +45,9 @@ export class AssignmentsController {
       return restoreDates(assignment);
     }
 
-    @Get('student/:studentId')
-    async getStudentAssignments(@Param('studentId') studentId: string){
-      const assignments = await firstValueFrom(this.assignmentsService.getStudentAssignments({ studentId })) as any;
+    @Get('student')
+    async getStudentAssignments(@CurrentUser() user: any){
+      const assignments = await firstValueFrom(this.assignmentsService.getStudentAssignments({ studentId: user.id })) as any;
       if(!assignments || !assignments.assignments || assignments.assignments.length === 0){
         return null;
       }
@@ -114,9 +120,9 @@ export class AssignmentsController {
       return restoreDates(parsedSubmissions);
     }
 
-    @Post('submit/:assignmentId/student/:studentId')
-    async submitAssignment(@Param('assignmentId') assignmentId: string, @Param('studentId') studentId: string, @Body() {content}: { content: string }){
-      const result = await firstValueFrom(this.assignmentsService.submitAssignment({ assignmentId, studentId, content })) as any;
+    @Post('submit/:assignmentId/student')
+    async submitAssignment(@Param('assignmentId') assignmentId: string, @Body() {content}: { content: string }, @CurrentUser() user: any){
+      const result = await firstValueFrom(this.assignmentsService.submitAssignment({ assignmentId, studentId: user.id, content })) as any;
       return restoreDates(result);
     }
 }

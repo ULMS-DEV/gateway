@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { BullModule } from '@nestjs/bull';
 import { AuthController } from './auth/auth.controller';
 import { TestController } from './test/test.controller';
 import { PermissionsService } from './permissions/permissions.service';
@@ -11,11 +12,25 @@ import { ProctorController } from './proctor/proctor.controller';
 import { ProctorService } from './proctor/proctor.service';
 import { AssignmentsController } from './assignments/assignments.controller';
 import { ExamsController } from './exams/exams.controller';
+import { ProctoringGateway } from './exams/proctoring.gateway';
+import { ProctoringProcessor } from './exams/proctoring.processor';
+import { AssistantController } from './assistant/assistant.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({isGlobal: true}),
     MulterModule.register(multerConfig),
+    BullModule.registerQueue({
+      name: 'proctoring',
+      redis: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+      },
+      defaultJobOptions: {
+        removeOnComplete: true,
+        attempts: 3,
+      },
+    }),
     ClientsModule.registerAsync([
       {
         name: 'AUTH_GRPC',
@@ -107,11 +122,33 @@ import { ExamsController } from './exams/exams.controller';
             protoPath: require.resolve('ulms-contracts/protos/proctor.proto'),
             url: cfg.get<string>('PROCTOR_GRPC_URL') ?? '0.0.0.0:60051',
             loader: {
+              keepCase: true,
               longs: String,
               enums: String,
               defaults: false,
               objects: true,
-              arrays: true
+              arrays: true,
+            }
+          }
+        }),
+        inject: [ConfigService]
+      },
+      {
+        name: 'ASSISTANT_GRPC',
+        imports: [ConfigModule],
+        useFactory: (cfg: ConfigService) => ({
+          transport: Transport.GRPC,
+          options: {
+            package: 'assistant',
+            protoPath: require.resolve('ulms-contracts/protos/assistant.proto'),
+            url: cfg.get<string>('ASSISTANT_GRPC_URL') ?? '0.0.0.0:60052',
+            loader: {
+              keepCase: true,
+              longs: String,
+              enums: String,
+              defaults: false,
+              objects: true,
+              arrays: true,
             }
           }
         }),
@@ -139,14 +176,15 @@ import { ExamsController } from './exams/exams.controller';
       },
     ]),
   ],
-  providers: [PermissionsService, ProctorService],
+  providers: [PermissionsService, ProctorService, ProctoringGateway, ProctoringProcessor],
   controllers: [
     AuthController,
     TestController,
     CoursesController,
     ProctorController,
     AssignmentsController,
-    ExamsController
+    ExamsController,
+    AssistantController
   ],
 })
 export class AppModule {}

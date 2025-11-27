@@ -21,15 +21,15 @@ export class ProctorController {
             reference_image?: Express.Multer.File[];
         },
     ) {
-        if (!files?.image?.[0]) {
-            throw new BadRequestException('Image is required');
+        if (!files?.image?.[0] || !files.reference_image?.[0]) {
+            throw new BadRequestException('Both images are required');
         }
 
         const image = files.image[0].buffer;
-        const referenceImage = files.reference_image?.[0]?.buffer;
+        const reference_image = files.reference_image[0].buffer;
 
         const result = await lastValueFrom(
-            this.proctorService.detectCheating(image, referenceImage),
+            this.proctorService.detectCheating(image, reference_image),
         );
 
         return result;

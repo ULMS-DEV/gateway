@@ -60,4 +60,14 @@ export class CoursesController {
         }
         return restoreDates(offers);
     }
+
+    @Post(':courseId/lectures')
+    async createLecture(@Param('courseId') courseId: string, @Body() data: { content: string; topic: string }){
+        const payload = {
+            ...data,
+            courseId
+        }
+        const result = await firstValueFrom(this.coursesService.createLecture(payload));
+        return restoreDates(result);
+    }
 }
