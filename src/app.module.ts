@@ -10,6 +10,7 @@ import { multerConfig } from './config/multer.config';
 import { ProctorController } from './proctor/proctor.controller';
 import { ProctorService } from './proctor/proctor.service';
 import { AssignmentsController } from './assignments/assignments.controller';
+import { ExamsController } from './exams/exams.controller';
 
 @Module({
   imports: [
@@ -116,6 +117,26 @@ import { AssignmentsController } from './assignments/assignments.controller';
         }),
         inject: [ConfigService]
       },
+      {
+        name: 'EXAM_GRPC',
+        imports: [ConfigModule],
+        useFactory: (cfg: ConfigService) => ({
+          transport: Transport.GRPC,
+          options: {
+            package: 'exam',
+            protoPath: require.resolve('ulms-contracts/protos/exam.proto'),
+            url: cfg.get<string>('EXAM_GRPC_URL') ?? '0.0.0.0:50055',
+            loader: {
+              longs: String,
+              enums: String,
+              defaults: false,
+              objects: true,
+              arrays: true
+            }
+          }
+        }),
+        inject: [ConfigService]
+      },
     ]),
   ],
   providers: [PermissionsService, ProctorService],
@@ -124,7 +145,8 @@ import { AssignmentsController } from './assignments/assignments.controller';
     TestController,
     CoursesController,
     ProctorController,
-    AssignmentsController
+    AssignmentsController,
+    ExamsController
   ],
 })
 export class AppModule {}
